@@ -743,7 +743,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
 
       await clickByText((t) => t.includes("Back"));
 
-      expect(document.body.textContent).toContain("What is the name of your organization?");
+      expect(document.body.textContent).toContain("Create your organization");
       expect(document.body.textContent).not.toContain("Define your mission");
 
       await act(async () => root.unmount());
