@@ -397,6 +397,19 @@ This starts the API server at `http://localhost:3100`. An embedded PostgreSQL da
 
 > **Requirements:** Node.js 24.11+, pnpm 9.15+
 
+The browser onboarding keeps three phases separate:
+
+1. Install and start the Paperclip control plane.
+2. Create an organization.
+3. Configure an agent and its model provider.
+
+Agent setup is optional. Choose **Configure agents later** after organization
+creation to enter the dashboard without creating an agent. OpenCode is available
+in the initial agent wizard and can use Ollama Cloud with an `OLLAMA_API_KEY`;
+this does not require a local Ollama daemon. OpenCode is still the execution
+harness, so its runtime must be available on the host or sandbox where the agent
+runs.
+
 <br/>
 
 ## FAQ

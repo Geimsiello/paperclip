@@ -52,6 +52,7 @@ const mockInstanceSettingsApi = vi.hoisted(() => ({
 }));
 
 const routerState = vi.hoisted(() => ({ pathname: "/" }));
+const mockNavigate = vi.hoisted(() => vi.fn());
 const dialogState = vi.hoisted(() => ({
   onboardingOpen: false,
   onboardingOptions: {} as { initialStep?: number; companyId?: string },
@@ -80,7 +81,7 @@ vi.mock("../api/instanceSettings", () => ({ instanceSettingsApi: mockInstanceSet
 
 vi.mock("@/lib/router", () => ({
   useLocation: () => ({ pathname: routerState.pathname }),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
   useParams: () => ({}),
 }));
 
@@ -605,22 +606,22 @@ describe("OnboardingWizard — which step it lands on", () => {
       expect(payload.name).toBe("Ada");
     });
 
-    it("does not offer a way back behind the step it entered on", async () => {
+    it("can defer agent setup without exposing company creation", async () => {
       // Step 1 creates a company. A run that already holds one must not be
-      // able to walk into it, by the Back button or the progress bar.
+      // able to walk into it, but it can decline the optional agent setup.
       await openOnAgentStep();
 
-      const back = [...document.body.querySelectorAll("button")].find((b) =>
-        b.textContent?.includes("Back"),
+      const defer = [...document.body.querySelectorAll("button")].find((b) =>
+        b.textContent?.includes("Configure agents later"),
       );
-      expect(back).toBeUndefined();
+      expect(defer).toBeTruthy();
 
       // The progress strip's segments are the only jump controls on this
       // screen. Entering here means there is nowhere behind to return to, so
       // every one of them is inert — asserted over the whole set rather than
       // one segment, since a single enabled one is the whole defect.
       const segments = [...document.body.querySelectorAll("button")].filter((b) =>
-        ["Create your first agent", "Connect a model", "Review"].includes(
+        ["Configure your first agent", "Connect an LLM provider", "Review"].includes(
           b.getAttribute("aria-label") ?? "",
         ),
       ) as HTMLButtonElement[];
@@ -629,6 +630,14 @@ describe("OnboardingWizard — which step it lands on", () => {
 
       // And company creation is genuinely unreachable, not merely unlinked.
       expect(document.body.textContent).not.toContain("Name your organization");
+
+      await press(defer!);
+      expect(dialogState.closeOnboarding).toHaveBeenCalled();
+      expect(companyState.setSelectedCompanyId).toHaveBeenCalledWith(
+        "company-1",
+        { source: "route_sync" },
+      );
+      expect(mockNavigate).toHaveBeenCalledWith("/PC1/dashboard");
     });
   });
 });

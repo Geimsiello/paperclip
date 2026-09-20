@@ -142,6 +142,7 @@ export async function validateAiApiKey(
     anthropic: "https://api.anthropic.com/v1/models?limit=1",
     openai: "https://api.openai.com/v1/models",
     openrouter: "https://openrouter.ai/api/v1/key",
+    ollama: "https://ollama.com/api/tags",
     xai: "https://api.x.ai/v1/models",
   };
   let response: Response;

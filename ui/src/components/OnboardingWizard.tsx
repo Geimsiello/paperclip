@@ -108,7 +108,11 @@ import { DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX } from "@paperclipai/a
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
 import { DEFAULT_KIMI_LOCAL_MODEL } from "@paperclipai/adapter-kimi-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL, isValidOpenCodeModelId } from "@paperclipai/adapter-opencode-local";
+import {
+  DEFAULT_OLLAMA_CLOUD_MODEL,
+  DEFAULT_OPENCODE_LOCAL_MODEL,
+  isValidOpenCodeModelId,
+} from "@paperclipai/adapter-opencode-local";
 import {
   canGoBackFromOnboardingStep,
   canJumpToOnboardingStep,
@@ -132,6 +136,7 @@ import { CredentialModeLink } from "./onboarding/CredentialModeLink";
 import { FooterNav, type FooterPrimaryIcon } from "./onboarding/FooterNav";
 import { OnboardingHeading } from "./onboarding/OnboardingPrimitives";
 import { DEFAULT_AGENT_ROLE } from "../lib/onboarding-agent-role";
+import { claimOnboardingOffer } from "../lib/onboarding-auto-open";
 import { capsuleHeroMotion, capsuleRoomEnter, capsuleRoomExit, heroRoomArrival, heroRoomMotion, ledeMotion, stepContentMotion, titleSwapMotion } from "./onboarding/onboarding-motion";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -253,7 +258,12 @@ const API_KEY_ENV_KEYS: Record<string, string> = {
   codex_local: "OPENAI_API_KEY",
 };
 
-function apiKeyEnvKeyFor(adapterType: string): string {
+function apiKeyEnvKeyFor(adapterType: string, model?: string): string {
+  if (adapterType === "opencode_local") {
+    return model?.startsWith("ollama/")
+      ? "OLLAMA_API_KEY"
+      : "OPENROUTER_API_KEY";
+  }
   return API_KEY_ENV_KEYS[adapterType] ?? "API_KEY";
 }
 
@@ -696,7 +706,7 @@ function OnboardingWizardInner({
   );
   const savedKeys = useSavedProviderKeys(
     createdCompanyId,
-    apiKeyEnvKeyFor(adapterType),
+    apiKeyEnvKeyFor(adapterType, model),
     effectiveOnboardingOpen && step === 4,
   );
   // The chooser is absent in onboarding. Prefer the user's explicit default;
@@ -704,14 +714,19 @@ function OnboardingWizardInner({
   const savedSubscription = savedKeys.subscriptions.find((option) => option.aiConnection?.mode === "responsible_user")
     ?? (savedKeys.subscriptions.length === 1 ? savedKeys.subscriptions[0] : undefined);
   const [selectedSavedKey, setSelectedSavedKey] = useState<{ companyId: string; envKey: string; id: string } | null>(null);
-  const selectedApiKeyId = selectedSavedKey?.companyId === createdCompanyId && selectedSavedKey?.envKey === apiKeyEnvKeyFor(adapterType)
+  const selectedApiKeyId = selectedSavedKey?.companyId === createdCompanyId && selectedSavedKey?.envKey === apiKeyEnvKeyFor(adapterType, model)
     ? selectedSavedKey.id
     : savedKeys.options[0]?.id;
   const selectedApiKey = savedKeys.options.find((option) => option.id === selectedApiKeyId);
-  const credentialMode = credentialModeChoice ?? (
-    (savedKeys.subscriptions.length > 0 || (adapterType === "claude_local" && savedKeys.storedLogin.data))
-      ? "subscription" : savedKeys.options.length || adapterType === "opencode_local" ? "api" : "subscription"
-  );
+  const credentialMode = adapterType === "opencode_local"
+    ? "api"
+    : credentialModeChoice ?? (
+        (savedKeys.subscriptions.length > 0 || (adapterType === "claude_local" && savedKeys.storedLogin.data))
+          ? "subscription"
+          : savedKeys.options.length
+            ? "api"
+            : "subscription"
+      );
   const [createdCompanyPrefix, setCreatedCompanyPrefix] = useState<
     string | null
   >((saved?.createdCompanyPrefix as string) ?? null);
@@ -761,10 +776,14 @@ function OnboardingWizardInner({
    */
   const apiKeySecretRef = useRef<{ key: string; companyId: string; envKey: string; binding?: Awaited<ReturnType<typeof storeProviderApiKey>>["binding"]; aiConnection?: AiConnectionBinding } | null>(null);
   const managedSubscriptionRef = useRef<{ companyId: string; binding: AiConnectionBinding } | null>(null);
-  const managedProvider = aiProviderForAdapter(adapterType);
+  const managedProvider = aiProviderForAdapter(adapterType, model);
+  const managedProviderLabel =
+    managedProvider === "ollama"
+      ? "Ollama Cloud"
+      : CONNECT_SOURCE_NAMES[adapterType] ?? managedProvider ?? adapterType;
   function managedBindingForStep(): AiConnectionBinding | undefined {
     if (credentialMode === "api") return selectedApiKey?.aiConnection ?? (
-      !selectedApiKey && apiKeySecretRef.current?.companyId === createdCompanyId && apiKeySecretRef.current.envKey === apiKeyEnvKeyFor(adapterType)
+      !selectedApiKey && apiKeySecretRef.current?.companyId === createdCompanyId && apiKeySecretRef.current.envKey === apiKeyEnvKeyFor(adapterType, model)
         ? apiKeySecretRef.current.aiConnection : undefined);
     return savedSubscription?.aiConnection ?? (managedSubscriptionRef.current?.companyId === createdCompanyId && managedSubscriptionRef.current.binding.provider === managedProvider ? managedSubscriptionRef.current.binding : undefined);
   }
@@ -927,9 +946,13 @@ function OnboardingWizardInner({
     // The wizard doesn't expose an environment selector, so models always
     // resolve against the local Paperclip host (environmentId = null).
     queryKey: createdCompanyId
-      ? queryKeys.agents.adapterModels(createdCompanyId, adapterType, null)
-      : ["agents", "none", "adapter-models", adapterType, null],
-    queryFn: () => agentsApi.adapterModels(createdCompanyId!, adapterType, { environmentId: null }),
+      ? queryKeys.agents.adapterModels(createdCompanyId, adapterType, null, managedProvider)
+      : ["agents", "none", "adapter-models", adapterType, null, managedProvider],
+    queryFn: () =>
+      agentsApi.adapterModels(createdCompanyId!, adapterType, {
+        environmentId: null,
+        provider: managedProvider,
+      }),
     // Models are picked on step 4 (Connect a model).
     enabled: Boolean(createdCompanyId) && effectiveOnboardingOpen && step === 4
   });
@@ -1017,7 +1040,7 @@ function OnboardingWizardInner({
   const canUseLocalLogin = resolvedLoginEnvironment?.driver === "local" && (localLoginHealth.data?.localAiLoginSupported ?? localLoginHealth.data?.deploymentMode === "local_trusted");
   const localLogin = useLocalAiLogin(createdCompanyId, {
     provider: managedProvider ?? "anthropic", method: "subscription",
-    name: `My ${CONNECT_SOURCE_NAMES[adapterType] ?? managedProvider} subscription`,
+    name: `My ${managedProviderLabel} subscription`,
     ownership: "personal", agentIds: [], allAgents: true,
   }, effectiveOnboardingOpen && step === 4 && canUseLocalLogin && credentialMode !== "api" &&
     Boolean(managedProvider) && !savedSubscription && !savedKeys.storedLogin.data && !managedBindingForStep(),
@@ -1365,7 +1388,7 @@ function OnboardingWizardInner({
    * rather than offering — see `FooterNav`, where the label cross-fades over an
    * easing width so those changes read as one control rather than four.
    */
-  const connectSourceLabel = CONNECT_SOURCE_NAMES[adapterType] ?? adapterType;
+  const connectSourceLabel = managedProviderLabel;
   const connectCta: { label: string; icon: FooterPrimaryIcon; disabled: boolean } =
     connectProgress
       ? { label: adapterEnvLoading ? "Testing…" : connectProgress, icon: "spinner", disabled: true }
@@ -1498,7 +1521,7 @@ function OnboardingWizardInner({
     setSourcePicked(false);
     if (next === "codex_local") return;
     if (next === "opencode_local") {
-      setModel(DEFAULT_OPENCODE_LOCAL_MODEL);
+      setModel(DEFAULT_OLLAMA_CLOUD_MODEL);
       return;
     }
     if (next === "gemini_local") {
@@ -1656,6 +1679,23 @@ function OnboardingWizardInner({
     setRouteDismissed(true);
   }
 
+  function handleConfigureAgentsLater() {
+    if (!createdCompanyId) {
+      setError("Create or select an organization before leaving agent setup.");
+      return;
+    }
+    const companyId = createdCompanyId;
+    const prefix = createdCompanyPrefix;
+    // Prevent the empty-dashboard offer from reopening this wizard during the
+    // same visit. A later visit can still offer agent setup again.
+    claimOnboardingOffer(companyId);
+    setSelectedCompanyId(companyId, { source: "route_sync" });
+    reset();
+    closeOnboarding();
+    setRouteDismissed(true);
+    navigate(prefix ? `/${prefix}/dashboard` : "/dashboard");
+  }
+
   /**
    * Whether the company an async handler started for is still the one in hand.
    *
@@ -1794,11 +1834,11 @@ function OnboardingWizardInner({
    */
   async function storeApiKeyUserSecret(companyId: string): Promise<boolean> {
     const key = apiKey.trim();
-    const envKey = apiKeyEnvKeyFor(adapterType);
+    const envKey = apiKeyEnvKeyFor(adapterType, model);
     if (apiKeySecretRef.current?.key === key && apiKeySecretRef.current.companyId === companyId && apiKeySecretRef.current.envKey === envKey) return true;
     try {
       if (managedProvider) {
-        await aiConnectionsApi.create(companyId, { provider: managedProvider, method: "api_key", name: `My ${CONNECT_SOURCE_NAMES[adapterType] ?? managedProvider} API`, ownership: "personal", apiKey: key, agentIds: [], allAgents: true });
+        await aiConnectionsApi.create(companyId, { provider: managedProvider, method: "api_key", name: `My ${managedProviderLabel} API`, ownership: "personal", apiKey: key, agentIds: [], allAgents: true });
         apiKeySecretRef.current = { key, companyId, envKey, aiConnection: { provider: managedProvider, method: "api_key", mode: "responsible_user" } };
         return true;
       }
@@ -1872,7 +1912,7 @@ function OnboardingWizardInner({
         typeof config.env === "object" && config.env !== null && !Array.isArray(config.env)
           ? { ...(config.env as Record<string, unknown>) }
           : {};
-      env[apiKeyEnvKeyFor(adapterType)] = selectedApiKey?.binding ?? apiKeySecretRef.current?.binding;
+      env[apiKeyEnvKeyFor(adapterType, model)] = selectedApiKey?.binding ?? apiKeySecretRef.current?.binding;
       config.env = env;
     }
     if (credentialMode === "subscription" && savedSubscription?.binding) {
@@ -2540,6 +2580,11 @@ function OnboardingWizardInner({
                     </motion.div>
                     </motion.div>
 
+                    <p className="mb-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {step === 1
+                        ? "Control plane ready · Organization setup"
+                        : "Agent setup · Optional"}
+                    </p>
                     <OnboardingHeading
                       center
                       // Keyed by step so the new words fade in where the old
@@ -2548,12 +2593,12 @@ function OnboardingWizardInner({
                       title={
                         <motion.span key={step} {...titleSwapMotion} className="inline-block">
                           {step === 1
-                            ? "What is the name of your organization?"
+                            ? "Create your organization"
                             : step === 3
-                              ? "Create your first agent"
+                              ? "Configure your first agent"
                               : step === 4
-                                ? "Connect a model"
-                                : "Let's get started..."}
+                                ? "Connect an LLM provider"
+                                : "Agent configuration complete"}
                         </motion.span>
                       }
                     />
@@ -2691,7 +2736,7 @@ function OnboardingWizardInner({
                         autoConnectStartedRef.current = false;
                         setSourcePicked(true);
                         setAdapterType(id);
-                        if (id === "opencode_local") setModel(DEFAULT_OPENCODE_LOCAL_MODEL);
+                        if (id === "opencode_local") setModel(DEFAULT_OLLAMA_CLOUD_MODEL);
                         else if (id !== "codex_local") setModel("");
                         setConnectPhase("collapsing");
                       }}
@@ -2720,7 +2765,13 @@ function OnboardingWizardInner({
                       transition={{ opacity: SOURCE_LINK_EXIT, height: MAKE_ROOM }}
                     >
                       <div className="-ml-3 mt-1">
-                        <CredentialModeLink mode={credentialMode} onChange={setCredentialMode} />
+                        {adapterType !== "opencode_local" ? (
+                          <CredentialModeLink mode={credentialMode} onChange={setCredentialMode} />
+                        ) : (
+                          <p className="px-3 text-sm text-muted-foreground">
+                            OpenCode uses a provider API key.
+                          </p>
+                        )}
                         {savedKeys.options.length > 0 && <p className="px-3 text-sm text-muted-foreground">{savedKeys.options.length} saved API {savedKeys.options.length === 1 ? "key available" : "keys available"}.</p>}
                         {credentialMode === "subscription" && authSignalStatus === "present" && <p className="px-3 text-sm text-muted-foreground">An existing provider connection is available.</p>}
                       </div>
@@ -2771,11 +2822,11 @@ function OnboardingWizardInner({
                     ) : credentialMode === "api" ? (
                       <OnboardingLoginCard
                         instruction={savedKeys.options.length ? "Choose a saved API key or enter a new one" : `Provide your ${
-                          CONNECT_SOURCE_NAMES[adapterType] ?? adapterType
+                          managedProviderLabel
                         } API key to connect`}
                       >
                         <SavedProviderKeySelect {...savedKeys} disabled={loading || adapterEnvLoading} value={selectedApiKey?.id ?? ""} onChange={(id) => {
-                          setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType), id } : null);
+                          setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType, model), id } : null);
                           setApiKey("");
                         }} />
                         {!selectedApiKey && <OnboardingCardField
@@ -2788,7 +2839,7 @@ function OnboardingWizardInner({
                           autoFocus
                           value={apiKey}
                           onChange={(value) => {
-                            setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType), id: "" } : null);
+                            setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType, model), id: "" } : null);
                             setApiKey(value);
                           }}
                           onSubmit={() => handleConnectStepPrimary()}
@@ -2815,7 +2866,7 @@ function OnboardingWizardInner({
                         adapterType={adapterType}
                         environmentId={resolvedLoginEnvironmentId}
                         chrome="onboarding"
-                        aiConnection={managedProvider ? { provider: managedProvider, method: "subscription", name: `My ${CONNECT_SOURCE_NAMES[adapterType] ?? managedProvider} subscription`, ownership: "personal", agentIds: [], allAgents: true } : undefined}
+                        aiConnection={managedProvider ? { provider: managedProvider, method: "subscription", name: `My ${managedProviderLabel} subscription`, ownership: "personal", agentIds: [], allAgents: true } : undefined}
                         autoStart
                         onPromptReady={(url) => {
                           setConnectAuthUrl(url);
@@ -3076,13 +3127,18 @@ function OnboardingWizardInner({
               {(isAgentArcStep || step === 1) && (
                 <FooterNav
                   onBack={
+                    step === 3
+                      ? handleConfigureAgentsLater
                     // On the connect step Back unwinds the sign-in first, and
                     // only means "the previous step" once nothing is running.
-                    step === 4 && connectPhase !== "idle"
+                    : step === 4 && connectPhase !== "idle"
                       ? unwindConnectStep
                       : canGoBackFromOnboardingStep({ currentStep: step, entryStep })
                         ? () => setStep(backStepFrom(step))
                         : undefined
+                  }
+                  secondaryLabel={
+                    step === 3 ? "Configure agents later" : "Back"
                   }
                   // The prototype's cloud flow hires on this step and calls the
                   // action "Create". Here the model step sits between, so this

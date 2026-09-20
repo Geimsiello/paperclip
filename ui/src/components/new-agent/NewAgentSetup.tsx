@@ -145,13 +145,12 @@ function Setup({
   const [providerBinding, setProviderBinding] = useState<EnvBinding | null>(
     null,
   );
-  const [runtimeAiBinding, setRuntimeAiBinding] = useState<AiConnectionBinding | undefined>(() =>
-    brandType === "opencode_local"
-      ? { provider: "openrouter", method: "api_key", mode: "responsible_user" }
-      : undefined,
-  );
+  const [runtimeAiBinding, setRuntimeAiBinding] =
+    useState<AiConnectionBinding>();
   const [connection, setConnection] = useState<ProviderConnection | null>(null);
   const aiBinding = runtimeAiBinding ?? connection?.aiConnection;
+  const modelQueryProvider =
+    aiBinding?.provider ?? (multiProvider ? provider : undefined);
   const [repository, setRepository] = useState("");
   const [branch, setBranch] = useState("");
   const [createdInSession, setCreated] = useState<Agent | null>(null);
@@ -213,8 +212,8 @@ function Setup({
     queryFn: () => environmentsApi.capabilities(companyId),
   });
   const models = useQuery({
-    queryKey: queryKeys.agents.adapterModels(companyId, brandType, null, aiBinding?.provider),
-    queryFn: () => agentsApi.adapterModels(companyId, brandType, { provider: aiBinding?.provider }),
+    queryKey: queryKeys.agents.adapterModels(companyId, brandType, null, modelQueryProvider),
+    queryFn: () => agentsApi.adapterModels(companyId, brandType, { provider: modelQueryProvider }),
     enabled: Boolean(brandType) && showModel,
     retry: false,
   });
@@ -811,7 +810,7 @@ function Setup({
                     <fieldset disabled={busy} className="space-y-8">
                       <section className="space-y-5">
                         <h3 className="text-sm font-semibold">Runtime</h3>
-                        {aiProviderForAdapter(brandType) && (
+                        {aiProviderForAdapter(brandType, model) && (
                           connection && !aiBinding ? (
                             <div className="space-y-3">
                               <p className="text-sm text-muted-foreground">
@@ -836,6 +835,20 @@ function Setup({
                                 value={model}
                                 onChange={(value) => {
                                   setModel(value);
+                                  const nextManagedProvider =
+                                    aiProviderForAdapter(brandType, value);
+                                  setRuntimeAiBinding(
+                                    (current) =>
+                                      current?.provider === nextManagedProvider
+                                        ? current
+                                        : nextManagedProvider
+                                          ? {
+                                              provider: nextManagedProvider,
+                                              method: "api_key",
+                                              mode: "responsible_user",
+                                            }
+                                          : undefined,
+                                  );
                                   if (
                                     effort &&
                                     !setupEfforts(adapterType, value).includes(
@@ -907,6 +920,7 @@ function Setup({
                                   onChange={(event) => {
                                     setProvider(event.target.value);
                                     setModel("");
+                                    setRuntimeAiBinding(undefined);
                                     setApiKey("");
                                     setProviderBinding(null);
                                     resetTest();
@@ -916,6 +930,8 @@ function Setup({
                                     <option key={key} value={key}>
                                       {key === "openrouter"
                                         ? "OpenRouter"
+                                        : key === "ollama"
+                                          ? "Ollama Cloud"
                                         : key === "openai"
                                           ? "OpenAI"
                                           : key === "anthropic"

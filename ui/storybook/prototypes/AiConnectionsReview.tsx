@@ -60,7 +60,11 @@ function AgentConnectionReview({
   error,
 }: AiConnectionsReviewProps) {
   const requirement = initialRequirement;
-  const method = requirement.method ?? (requirement.provider === "openrouter" ? "api_key" : "subscription");
+  const method = requirement.method ?? (
+    requirement.provider === "openrouter" || requirement.provider === "ollama"
+      ? "api_key"
+      : "subscription"
+  );
   const [connections, setConnections] = useState(initialConnections);
   const [binding, setBinding] = useState<AiConnectionBinding>(
     initialBinding ?? {

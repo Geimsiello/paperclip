@@ -29,6 +29,7 @@ export const AI_AUTH_ENV_KEYS = [
   "OPENAI_API_KEY",
   "CODEX_API_KEY",
   "OPENROUTER_API_KEY",
+  "OLLAMA_API_KEY",
   "XAI_API_KEY",
   "GROK_API_KEY",
   "CODEX_HOME",
@@ -290,6 +291,19 @@ export async function prepareManagedAiRuntime(
     if (input.binding.provider === "openrouter") {
       env.OPENCODE_CONFIG_CONTENT = JSON.stringify({
         provider: { openrouter: { options: { apiKey: value } } },
+      });
+      env.OPENCODE_DISABLE_PROJECT_CONFIG = "true";
+    }
+    if (input.binding.provider === "ollama") {
+      env.PAPERCLIP_OPENCODE_PROVIDERS = JSON.stringify({
+        ollama: {
+          npm: "@ai-sdk/openai-compatible",
+          name: "Ollama Cloud",
+          options: {
+            baseURL: "https://ollama.com/v1",
+            apiKey: "{env:OLLAMA_API_KEY}",
+          },
+        },
       });
       env.OPENCODE_DISABLE_PROJECT_CONFIG = "true";
     }

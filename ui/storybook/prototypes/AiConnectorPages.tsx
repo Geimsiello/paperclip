@@ -159,7 +159,8 @@ function Setup({ accounts, onSave }: { accounts: AiConnectionSummary[]; onSave: 
   const navigate = useNavigate();
   const provider = (params.get("source") ?? "anthropic") as AiProvider;
   const reconnect = accounts.find((row) => row.id === params.get("reconnect"));
-  const [method, setMethod] = useState<AiAuthMethod>(reconnect?.method ?? (provider === "openrouter" ? "api_key" : "subscription"));
+  const apiKeyOnly = provider === "openrouter" || provider === "ollama";
+  const [method, setMethod] = useState<AiAuthMethod>(reconnect?.method ?? (apiKeyOnly ? "api_key" : "subscription"));
   const [state, setState] = useState<AiAuthState>({ phase: "idle" });
   const [name, setName] = useState(reconnect?.name ?? `My ${AI_PROVIDERS[provider]?.subscriptionName ?? "OpenRouter API"}`);
   const [savedId, setSavedId] = useState<string>();
@@ -173,7 +174,7 @@ function Setup({ accounts, onSave }: { accounts: AiConnectionSummary[]; onSave: 
   if (!(provider in AI_PROVIDERS)) return <><p className="text-sm">This review focuses on AI authentication. The existing connector remains in the same list.</p><Button onClick={() => navigate("/apps")}>Back to Connectors</Button></>;
   return <ConnectionSetupFlow serviceSlug={provider} onCancel={() => navigate("/apps")} renderCredentialStep={({ grantKind, agentIds, allAgents }) => <AiReviewBoundary label="Shared AI credential presentation · Existing setup shell and login cards"><div className="mx-auto max-w-xl space-y-4">
     <label className="block space-y-2 text-sm">Connection name<Input value={name} onChange={(event) => setName(event.target.value)} disabled={Boolean(reconnect)} /></label>
-    {!reconnect && provider !== "openrouter" && <CredentialModeLink mode={method === "subscription" ? "subscription" : "api"} onChange={() => { setMethod(method === "subscription" ? "api_key" : "subscription"); setState({ phase: "idle" }); }} />}
+    {!reconnect && !apiKeyOnly && <CredentialModeLink mode={method === "subscription" ? "subscription" : "api"} onChange={() => { setMethod(method === "subscription" ? "api_key" : "subscription"); setState({ phase: "idle" }); }} />}
     <AiConnectionAuth provider={provider} method={method} state={state}
       onStart={() => setState({ phase: "waiting", authorizationUrl: "https://example.test/review-authorization", code: provider === "openai" ? "REVIEW-CODE" : undefined })}
       onSubmit={() => complete(grantKind, agentIds, allAgents)}

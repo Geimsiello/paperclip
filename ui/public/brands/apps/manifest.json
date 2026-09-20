@@ -445,6 +445,12 @@
       "darkAsset": "/brands/apps/openrouter-dark.svg"
     },
     {
+      "slug": "ollama",
+      "provider": "Ollama Cloud",
+      "catalogVisible": true,
+      "localAsset": "/brands/apps/ollama.svg"
+    },
+    {
       "slug": "xai",
       "provider": "Grok",
       "catalogVisible": true,

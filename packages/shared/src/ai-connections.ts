@@ -30,6 +30,7 @@ export const AI_PROVIDERS = [
   "anthropic",
   "openai",
   "openrouter",
+  "ollama",
   "xai",
 ] as const;
 export const aiProviderSchema = z.enum(AI_PROVIDERS);
@@ -100,6 +101,12 @@ export const AI_CONNECTION_CAPABILITIES: Record<
       api_key: { adapters: ["opencode_local"], envKey: "OPENROUTER_API_KEY" },
     },
   },
+  ollama: {
+    name: "Ollama Cloud",
+    methods: {
+      api_key: { adapters: ["opencode_local"], envKey: "OLLAMA_API_KEY" },
+    },
+  },
   xai: {
     name: "Grok",
     methods: {
@@ -131,8 +138,9 @@ export function isAiConnectionCompatible(
     : requirement.method ? [methods[requirement.method]] : [];
   return (
     candidates.some((method) => method?.adapters.includes(adapterType)) &&
-    (requirement.provider !== "openrouter" ||
-      (typeof model === "string" && model.startsWith("openrouter/")))
+    (!["openrouter", "ollama"].includes(requirement.provider) ||
+      (typeof model === "string" &&
+        model.startsWith(`${requirement.provider}/`)))
   );
 }
 export type AiConnectionUnavailableReason =
