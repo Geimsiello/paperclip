@@ -3127,18 +3127,21 @@ function OnboardingWizardInner({
               {(isAgentArcStep || step === 1) && (
                 <FooterNav
                   onBack={
-                    step === 3
-                      ? handleConfigureAgentsLater
                     // On the connect step Back unwinds the sign-in first, and
                     // only means "the previous step" once nothing is running.
-                    : step === 4 && connectPhase !== "idle"
+                    step === 4 && connectPhase !== "idle"
                       ? unwindConnectStep
                       : canGoBackFromOnboardingStep({ currentStep: step, entryStep })
                         ? () => setStep(backStepFrom(step))
                         : undefined
                   }
-                  secondaryLabel={
-                    step === 3 ? "Configure agents later" : "Back"
+                  secondaryAction={
+                    step === 3
+                      ? {
+                          label: "Configure agents later",
+                          onClick: handleConfigureAgentsLater,
+                        }
+                      : undefined
                   }
                   // The prototype's cloud flow hires on this step and calls the
                   // action "Create". Here the model step sits between, so this
