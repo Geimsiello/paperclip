@@ -260,9 +260,9 @@ const API_KEY_ENV_KEYS: Record<string, string> = {
 
 function apiKeyEnvKeyFor(adapterType: string, model?: string): string {
   if (adapterType === "opencode_local") {
-    return model?.startsWith("ollama/")
-      ? "OLLAMA_API_KEY"
-      : "OPENROUTER_API_KEY";
+    if (model?.startsWith("ollama/")) return "OLLAMA_API_KEY";
+    if (model?.startsWith("openrouter/")) return "OPENROUTER_API_KEY";
+    return "API_KEY";
   }
   return API_KEY_ENV_KEYS[adapterType] ?? "API_KEY";
 }

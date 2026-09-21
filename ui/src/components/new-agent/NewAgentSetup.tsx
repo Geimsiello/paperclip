@@ -140,7 +140,7 @@ function Setup({
   const [effort, setEffort] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
   const [environmentOverride, setEnvironmentOverride] = useState("");
-  const [provider, setProvider] = useState("openrouter");
+  const [provider, setProvider] = useState("ollama");
   const [apiKey, setApiKey] = useState("");
   const [providerBinding, setProviderBinding] = useState<EnvBinding | null>(
     null,
