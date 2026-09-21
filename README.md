@@ -397,6 +397,113 @@ This starts the API server at `http://localhost:3100`. An embedded PostgreSQL da
 
 > **Requirements:** Node.js 24.11+, pnpm 9.15+
 
+### Public server with login (Docker, PostgreSQL, and HTTPS)
+
+Use this path for an internet-facing server. It runs Paperclip and PostgreSQL
+as separate containers. PostgreSQL has no published host port, and Paperclip
+listens only on `127.0.0.1` behind an HTTPS reverse proxy.
+
+1. Point a DNS `A`/`AAAA` record, such as `paperclip.example.com`, to the
+   server. Allow inbound TCP ports `22`, `80`, and `443`. Do not expose
+   PostgreSQL port `5432`.
+2. Install [Docker Engine with the Compose
+   plugin](https://docs.docker.com/engine/install/ubuntu/), Git, OpenSSL, and
+   [Caddy](https://caddyserver.com/docs/install#debian-ubuntu-raspbian).
+3. Clone the repository and create deployment secrets:
+
+   ```bash
+   git clone https://github.com/paperclipai/paperclip.git
+   cd paperclip
+   umask 077
+   cat > .env <<EOF
+   POSTGRES_PASSWORD=$(openssl rand -hex 32)
+   BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+   PAPERCLIP_TOOL_ACTION_SIGNING_SECRET=$(openssl rand -hex 32)
+   PAPERCLIP_PUBLIC_URL=https://paperclip.example.com
+   EOF
+   chmod 600 .env
+   ```
+
+   Replace `paperclip.example.com` with your domain. Keep `.env` private and
+   back it up securely.
+
+4. Build and start the two containers:
+
+   ```bash
+   docker compose --env-file .env \
+     -f docker/docker-compose.public.yml up -d --build
+   docker compose --env-file .env \
+     -f docker/docker-compose.public.yml ps
+   ```
+
+5. Configure Caddy on the host:
+
+   ```caddyfile
+   paperclip.example.com {
+     reverse_proxy 127.0.0.1:3100
+   }
+   ```
+
+   Save this as `/etc/caddy/Caddyfile`, then validate and reload it:
+
+   ```bash
+   sudo caddy validate --config /etc/caddy/Caddyfile
+   sudo systemctl enable --now caddy
+   sudo systemctl reload caddy
+   curl -fsS https://paperclip.example.com/api/health
+   ```
+
+   Caddy obtains and renews the TLS certificate automatically after DNS and
+   ports `80`/`443` are correct.
+
+6. Create the one-time first-admin invite:
+
+   ```bash
+   docker compose --env-file .env \
+     -f docker/docker-compose.public.yml exec server \
+     pnpm paperclipai auth bootstrap-ceo \
+     --base-url https://paperclip.example.com
+   ```
+
+   Open the printed URL, create or sign in to the first account, and accept the
+   invite. That account becomes the instance administrator. Public mode does
+   not allow the lower-trust browser-only instance claim. Add other people
+   later through authenticated company invites.
+
+Useful operations:
+
+```bash
+# Follow application logs
+docker compose --env-file .env -f docker/docker-compose.public.yml logs -f server
+
+# Restart after a configuration change
+docker compose --env-file .env -f docker/docker-compose.public.yml restart server
+
+# Stop the stack without deleting persistent volumes
+docker compose --env-file .env -f docker/docker-compose.public.yml down
+```
+
+Back up both named volumes (`pgdata` and `paperclip-data`). If you already run
+a shared PostgreSQL container, give Paperclip its own database and role, attach
+the server to the same private Docker network, and set `DATABASE_URL` to that
+database. Never reuse another application's database credentials or publish
+PostgreSQL directly to the internet.
+
+The browser onboarding keeps three phases separate:
+
+1. Install and start the Paperclip control plane.
+2. Create an organization.
+3. Configure an agent and its model provider.
+
+Agent setup is optional. Choose **Configure agents later** after organization
+creation to enter the dashboard without creating an agent. OpenCode is available
+in the initial agent wizard and can use Ollama Cloud with an `OLLAMA_API_KEY`;
+this does not require a local Ollama daemon. OpenCode is still the execution
+harness, so its runtime must be available on the host or sandbox where the agent
+runs. Paperclip does not select or inject OpenRouter as a fallback. An
+OpenRouter connection is used only when the operator explicitly selects an
+`openrouter/...` model.
+
 <br/>
 
 ## FAQ

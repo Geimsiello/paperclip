@@ -83,6 +83,68 @@ describe("managed AI connections", () => {
     } finally { await Promise.all([subRun.cleanup(), apiRun.cleanup()]); }
   });
 
+  it("runs Ollama Cloud through OpenCode without an OpenRouter credential", async () => {
+    const userId = "ollama-api-user";
+    await db.insert(companyMemberships).values({
+      companyId,
+      principalId: userId,
+      principalType: "user",
+      status: "active",
+      membershipRole: "member",
+    });
+    const account = await service.save(
+      companyId,
+      userId,
+      {
+        provider: "ollama",
+        method: "api_key",
+        ownership: "personal",
+        name: "Ollama Cloud",
+        apiKey: "fixture-ollama-key",
+        allAgents: true,
+        agentIds: [],
+      },
+      "fixture-ollama-key",
+    );
+    const run = await prepareManagedAiRuntime(db, {
+      companyId,
+      agentId,
+      adapterType: "opencode_local",
+      responsibleUserId: userId,
+      binding: {
+        provider: "ollama",
+        method: "api_key",
+        mode: "responsible_user",
+      },
+      config: {
+        model: "ollama/gpt-oss:120b",
+        env: { OPENROUTER_API_KEY: "must-be-removed" },
+      },
+    });
+    try {
+      const env = run.config.env as Record<string, string>;
+      expect(run.attribution).toMatchObject({
+        connectionId: account.connectionId,
+        grantId: account.grantId,
+        provider: "ollama",
+      });
+      expect(env.OLLAMA_API_KEY).toBe("fixture-ollama-key");
+      expect(env.OPENROUTER_API_KEY).toBe("");
+      expect(JSON.parse(env.PAPERCLIP_OPENCODE_PROVIDERS)).toEqual({
+        ollama: {
+          npm: "@ai-sdk/openai-compatible",
+          name: "Ollama Cloud",
+          options: {
+            baseURL: "https://ollama.com/v1",
+            apiKey: "{env:OLLAMA_API_KEY}",
+          },
+        },
+      });
+    } finally {
+      await run.cleanup();
+    }
+  });
+
   it("has one provider default across methods, retains unavailable defaults and honors explicit account methods", async () => {
     const userId = "provider-default-user";
     await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
@@ -463,6 +525,9 @@ describe("managed AI connections", () => {
     expect(isAiConnectionCompatible(binding, "paperclip_runner", "same-model", "acpx", "claude")).toBe(true);
     expect(isAiConnectionCompatible(binding, "paperclip_runner", "same-model", "acpx", "codex")).toBe(false);
     expect(isAiConnectionCompatible({ provider: "openrouter", method: "api_key" }, "opencode_local", "anthropic/model")).toBe(false);
+    expect(isAiConnectionCompatible({ provider: "openrouter", method: "api_key" }, "opencode_local", "ollama/gpt-oss:120b")).toBe(false);
+    expect(isAiConnectionCompatible({ provider: "ollama", method: "api_key" }, "opencode_local", "ollama/gpt-oss:120b")).toBe(true);
+    expect(isAiConnectionCompatible({ provider: "ollama", method: "api_key" }, "opencode_local", "openrouter/openai/gpt-5")).toBe(false);
   });
   it("does not let a forged delegation bypass human access or accept an expired subscription attempt", async () => {
     const selected = await service.select({ ...input, userId: "alice" });
@@ -612,6 +677,17 @@ describe("managed AI connections", () => {
     const request = vi.fn().mockResolvedValue(new Response("secret-provider-body", { status: 401 }));
     await expect(validateAiApiKey("anthropic", "fixture", request)).rejects.toThrow("rejected");
     expect(request.mock.calls[0][1].redirect).toBe("error");
+  });
+  it("validates Ollama Cloud keys against the fixed authenticated models endpoint", async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    await validateAiApiKey("ollama", "fixture-ollama-key", fetcher);
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://ollama.com/api/tags",
+      expect.objectContaining({
+        redirect: "error",
+        headers: { Authorization: "Bearer fixture-ollama-key" },
+      }),
+    );
   });
   it("uses the authenticated responsible user for agent-originated configuration and tests", async () => {
     const req = { actor: { type: "agent", agentId, onBehalfOfUserId: "alice" } } as express.Request;

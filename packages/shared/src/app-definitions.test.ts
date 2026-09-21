@@ -246,6 +246,21 @@ describe("AppDefinition catalog", () => {
     expect(getAvailableConnectionMethod(anthropic, "api-key")).toBeNull();
   });
 
+  it("offers Ollama Cloud as API-key runtime authentication", () => {
+    const ollama = APP_DEFINITIONS.find((app) => app.slug === "ollama")!;
+    expect(ollama.name).toBe("Ollama Cloud");
+    expect(ollama.methods).toEqual([
+      expect.objectContaining({
+        key: "ai-api_key",
+        purpose: "ai",
+        transport: "runtime_auth",
+        auth: "api_key",
+        ai: { provider: "ollama", method: "api_key" },
+        keyPlacement: { location: "env", name: "OLLAMA_API_KEY" },
+      }),
+    ]);
+  });
+
   it("validates all Wave 1 definitions", () =>
     expect(() => appDefinitionsSchema.parse(APP_DEFINITIONS)).not.toThrow());
   it("contains every established provider plus the reviewed self-serve catalog", () => {
@@ -709,7 +724,7 @@ describe("AppDefinition catalog", () => {
       "ticktick",
       "xero",
     ]);
-    expect(APP_STORE_DEFINITIONS).toHaveLength(48);
+    expect(APP_STORE_DEFINITIONS).toHaveLength(49);
     const connectableSlugs = new Set(
       CONNECTABLE_APP_DEFINITIONS.map((entry) => entry.slug),
     );

@@ -298,6 +298,19 @@ describe("New agent setup", () => {
     await render("opencode_local");
     expect(container.querySelector('[aria-label="Thinking effort"]')).toBeNull();
   });
+  it("defaults OpenCode to Ollama without an implicit OpenRouter binding", async () => {
+    await render("opencode_local");
+    expect(
+      (container.querySelector(
+        '[aria-label="API key provider"]',
+      ) as HTMLSelectElement).value,
+    ).toBe("ollama");
+    expect(api.adapterModels).toHaveBeenCalledWith(
+      "company-1",
+      "opencode_local",
+      expect.objectContaining({ provider: "ollama" }),
+    );
+  });
   it("restores confirmation on refresh without hiring again", async () => {
     api.get.mockResolvedValue({
       id: "saved-agent",

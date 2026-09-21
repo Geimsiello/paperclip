@@ -36,8 +36,8 @@ const REGISTRY: Record<string, AdapterDefaults> = {
   },
   opencode_local: {
     runtimeImage: "ghcr.io/paperclipai/agent-runtime-opencode:v1",
-    envKeys: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"],
-    allowFqdns: ["api.anthropic.com", "api.openai.com", "openrouter.ai"],
+    envKeys: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "OLLAMA_API_KEY"],
+    allowFqdns: ["api.anthropic.com", "api.openai.com", "openrouter.ai", "ollama.com"],
     probeCommand: ["opencode", "--version"],
   },
   pi_local: {

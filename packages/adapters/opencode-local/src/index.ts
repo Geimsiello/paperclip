@@ -43,6 +43,11 @@ export const SANDBOX_INSTALL_COMMAND =
   'fi';
 
 export const DEFAULT_OPENCODE_LOCAL_MODEL = "openai/gpt-5.2-codex";
+export const DEFAULT_OLLAMA_CLOUD_MODEL = "ollama/qwen3.5:397b";
+export const OLLAMA_CLOUD_MODELS: Array<{ id: string; label: string }> = [
+  { id: DEFAULT_OLLAMA_CLOUD_MODEL, label: "Qwen 3.5 397B · Ollama Cloud" },
+  { id: "ollama/gpt-oss:120b", label: "GPT-OSS 120B · Ollama Cloud" },
+];
 
 export function isValidOpenCodeModelId(value: unknown): value is string {
   if (typeof value !== "string") return false;
@@ -53,6 +58,7 @@ export function isValidOpenCodeModelId(value: unknown): value is string {
 
 export const models: Array<{ id: string; label: string }> = [
   { id: DEFAULT_OPENCODE_LOCAL_MODEL, label: DEFAULT_OPENCODE_LOCAL_MODEL },
+  ...OLLAMA_CLOUD_MODELS,
   { id: "openai/gpt-5.5", label: "openai/gpt-5.5" },
   { id: "openai/gpt-5.4", label: "openai/gpt-5.4" },
   { id: "openai/gpt-5.4-mini", label: "openai/gpt-5.4-mini" },
@@ -93,6 +99,8 @@ Operational fields:
 Notes:
 - OpenCode supports multiple providers and models. Use \
   \`opencode models\` to list available options in provider/model format.
+- Ollama Cloud uses \`ollama/<model>\`, \`https://ollama.com/v1\`, and \
+  \`OLLAMA_API_KEY\`. This built-in route does not target a local Ollama daemon.
 - Paperclip requires an explicit \`model\` value for \`opencode_local\` agents.
 - Runs are executed with: opencode run --format json ...
 - Sessions are resumed with --session when stored session cwd matches current cwd.

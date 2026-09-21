@@ -18,6 +18,7 @@ export const AI_PROVIDERS: Record<
     logo: "/brands/codex-color.svg",
   },
   openrouter: { name: "OpenRouter", logo: "/brands/apps/openrouter.svg" },
+  ollama: { name: "Ollama Cloud", logo: "/brands/apps/ollama.svg" },
   xai: {
     name: "Grok",
     subscriptionName: "Grok subscription",

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "slug": "ollama",
+  "name": "Ollama Cloud",
+  "description": "Connect Ollama Cloud accounts for your agents.",
+  "categories": [
+    "ai"
+  ],
+  "branding": {
+    "logoUrl": "/brands/apps/ollama.svg"
+  },
+  "urlPatterns": [
+    "https://ollama.com/api/*"
+  ],
+  "methods": [
+    {
+      "key": "ai-api_key",
+      "label": "Ollama Cloud API key",
+      "purpose": "ai",
+      "transport": "runtime_auth",
+      "auth": "api_key",
+      "ai": {
+        "provider": "ollama",
+        "method": "api_key"
+      },
+      "grantKinds": [
+        "user",
+        "organization"
+      ],
+      "ownershipModes": [
+        "customer"
+      ],
+      "whenToUse": "Authenticate an agent with this account.",
+      "guidanceMd": "Use your personal account or an explicitly shared company account.",
+      "riskTier": "S3",
+      "credentialFields": [
+        {
+          "key": "apiKey",
+          "label": "API key",
+          "type": "password",
+          "required": true,
+          "placeholder": "Enter API key",
+          "secret": true
+        }
+      ],
+      "keyPlacement": {
+        "location": "env",
+        "name": "OLLAMA_API_KEY"
+      }
+    }
+  ]
+}

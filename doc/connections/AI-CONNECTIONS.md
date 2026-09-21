@@ -21,7 +21,13 @@ The shared `AI_CONNECTION_CAPABILITIES` contract defines these combinations:
 | Claude / Anthropic | Claude subscription token or Anthropic API key | Claude |
 | OpenAI | ChatGPT/Codex subscription or OpenAI API key | Codex |
 | OpenRouter | API key | OpenCode, with an `openrouter/` model |
+| Ollama Cloud | API key | OpenCode, with an `ollama/` model |
 | Grok / xAI | Grok subscription or xAI API key | Grok |
+
+Ollama support targets the hosted API at `https://ollama.com`; it does not
+configure or call a local Ollama daemon. Paperclip injects a dedicated OpenCode
+provider configuration and `OLLAMA_API_KEY`. It clears other managed AI
+credentials for the run, including `OPENROUTER_API_KEY`.
 
 Native runner supports the corresponding existing Codex, OpenCode, and Claude
 ACP profiles. Connections creation and reconnect mount `AgentProviderConnection`,
@@ -68,7 +74,8 @@ Anthropic offers Claude subscription and Claude API key; the unsupported duplica
 validation also pairs AI metadata with runtime authentication and rejects unsupported
 sign-in methods. Provider artwork and source provenance live in
 `ui/public/brands/apps/manifest.json`; OpenRouter uses its official sign-in assets,
-and OpenAI/Grok reuse the repository's pinned Lobe Icons source and license.
+Ollama uses its official repository artwork, and OpenAI/Grok reuse the
+repository's pinned Lobe Icons source and license.
 
 Provider/method metadata lives in `config.ai`. Credentials live on the existing
 grant through encrypted vault secret references, with existing consumer bindings.

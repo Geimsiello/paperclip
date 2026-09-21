@@ -193,12 +193,15 @@ vi.mock("../adapters/metadata", () => ({ isVisualAdapterChoice: () => true }));
 vi.mock("../adapters/adapter-display-registry", () => ({
   getAdapterDisplay: (type: string) => ({
     type,
-    // Mirrors the real registry, where these two and only these two are
+    // Mirrors the real registry, where these three are
     // `recommended`. A blanket `false` used to be harmless because every adapter
     // then sat in the "Advanced settings" disclosure and was reachable anyway;
     // with the step down to a tile row built from this flag, it made that row
     // empty in every test and hid the surface under it.
-    recommended: type === "claude_local" || type === "codex_local",
+    recommended:
+      type === "claude_local" ||
+      type === "codex_local" ||
+      type === "opencode_local",
     label: type,
     description: "",
     icon: () => null,
@@ -444,7 +447,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       await clickByText((t) => t.startsWith("Continue"));
 
       expect(mockCompaniesApi.create).toHaveBeenCalledWith({ name: "Initech" });
-      expect(document.body.textContent).toContain("Create your first agent");
+      expect(document.body.textContent).toContain("Configure your first agent");
       expect(document.body.textContent).not.toContain("Define your mission");
       expect(document.body.textContent).not.toContain("Tell us about your team");
 
@@ -461,7 +464,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       mockCompaniesApi.create.mockResolvedValue({ id: "company-new", issuePrefix: "INI" });
       const { root } = await openStepOne();
       await clickByText((t) => t.startsWith("Continue"));
-      expect(document.body.textContent).toContain("Create your first agent");
+      expect(document.body.textContent).toContain("Configure your first agent");
 
       // Step 3 → 4 needs an agent name — the one field the step has now.
       const agentField = document.body.querySelector(
@@ -473,7 +476,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       await flushReact();
       await clickByText((t) => isArcPrimary(t));
 
-      expect(document.body.textContent).toContain("Connect a model");
+      expect(document.body.textContent).toContain("Connect an LLM provider");
       await pickFirstSource(clickByText);
       expect(document.body.textContent).not.toContain("Adapter environment check");
       expect(document.body.textContent).not.toContain("Test now");
@@ -485,7 +488,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       // The review step is the heading and the woken agent, nothing else: the
       // checklist that restated the walk in three rows is gone, and with it
       // the Mission row that could only render unchecked.
-      expect(document.body.textContent).toContain("Let's get started...");
+      expect(document.body.textContent).toContain("Agent configuration complete");
       expect(document.body.textContent).toContain("Ada is ready to work!");
       expect(document.body.textContent).not.toContain("Organization name");
       expect(document.body.textContent).not.toContain("Model connected");
@@ -650,7 +653,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       });
       await flushReact();
       await clickByText((t) => isArcPrimary(t));
-      expect(document.body.textContent).toContain("Connect a model");
+      expect(document.body.textContent).toContain("Connect an LLM provider");
       await pickFirstSource(clickByText);
 
       const connect = [...document.body.querySelectorAll("button")].find((b) =>
@@ -690,7 +693,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       await flushReact();
 
       expect(mockCompaniesApi.create).toHaveBeenCalledTimes(1);
-      expect(document.body.textContent).toContain("Create your first agent");
+      expect(document.body.textContent).toContain("Configure your first agent");
 
       await act(async () => root.unmount());
     });
@@ -725,7 +728,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
 
       await act(async () => resolveCreate({ id: "company-new", issuePrefix: "INI" }));
       await flushReact();
-      expect(document.body.textContent).toContain("Create your first agent");
+      expect(document.body.textContent).toContain("Configure your first agent");
 
       await act(async () => root.unmount());
     });
@@ -736,11 +739,11 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       mockCompaniesApi.create.mockResolvedValue({ id: "company-new", issuePrefix: "INI" });
       const { root } = await openStepOne();
       await clickByText((t) => t.startsWith("Continue"));
-      expect(document.body.textContent).toContain("Create your first agent");
+      expect(document.body.textContent).toContain("Configure your first agent");
 
       await clickByText((t) => t.includes("Back"));
 
-      expect(document.body.textContent).toContain("What is the name of your organization?");
+      expect(document.body.textContent).toContain("Create your organization");
       expect(document.body.textContent).not.toContain("Define your mission");
 
       await act(async () => root.unmount());
@@ -794,7 +797,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       });
       await flushReact();
       await clickByText((t) => isArcPrimary(t));
-      expect(document.body.textContent).toContain("Connect a model");
+      expect(document.body.textContent).toContain("Connect an LLM provider");
 
       // The credential mode is chosen *before* a source, because picking a
       // source starts the sequence and the mode link fades out with the row —
@@ -1344,7 +1347,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     // The draft is restored once companies settle: step 3 (Create your first
     // agent) with the saved agent name in the input, not the defaults
     // (step 0, "Chief of staff").
-    expect(document.body.textContent).toContain("Create your first agent");
+    expect(document.body.textContent).toContain("Configure your first agent");
     const nameInput = document.body.querySelector(
       "#onboarding-agent-name",
     ) as HTMLInputElement | null;
@@ -1354,7 +1357,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     // labelled by destination: the wizard has its own numbering, and two
     // controls both announcing "Step 1" would mean different things.
     const currentStep = document.body.querySelector('[aria-current="step"]');
-    expect(currentStep?.getAttribute("aria-label")).toBe("Create your first agent");
+    expect(currentStep?.getAttribute("aria-label")).toBe("Configure your first agent");
     expect(document.body.textContent).toContain("Step 1 of 3");
 
     await act(async () => {
@@ -2008,7 +2011,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       // itself), each settling on its own render. One flush is not always
       // enough to reach the end of that chain.
       for (let i = 0; i < 5; i++) await flushReact();
-      expect(document.body.textContent).toContain("Connect a model");
+      expect(document.body.textContent).toContain("Connect an LLM provider");
       // No pick needed here: the draft this helper restores already names an
       // adapter, which is what a run returning to this step actually carries.
       return { root, queryClient };
@@ -2061,26 +2064,70 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     });
 
     it("names the tiles for the provider, not the adapter type", async () => {
-      // `MODEL_SOURCE_NAMES` exists so this row says "Claude" and "OpenAI" —
+      // `CONNECT_SOURCE_NAMES` exists so this row says "Claude", "OpenAI", and
+      // "OpenCode" —
       // which provider you are signing in to, the question the step's heading
       // asks — rather than the display registry's tool names, which the agent
       // config screens want. It was added with a long comment justifying it and
       // then never read, so the row went on rendering whatever the registry
-      // supplied: "Claude Code" and "Codex" in the app, and the bare type here,
-      // since this suite's registry mock returns `label: type`.
-      mockAdapterRegistry.list = [{ type: "claude_local" }, { type: "codex_local" }];
+      // supplied: "Claude Code" and "Codex" in the app, and bare types here.
+      mockAdapterRegistry.list = [
+        { type: "claude_local" },
+        { type: "codex_local" },
+        { type: "opencode_local" },
+      ];
       const { root } = await openStep4({ adapterType: "claude_local" });
 
       const labels = [...document.body.querySelectorAll("button[aria-checked]")].map(
         (tile) => tile.textContent ?? "",
       );
-      expect(labels.length, "both recommended sources should render").toBe(2);
+      expect(labels.length, "all recommended sources should render").toBe(3);
       expect(labels.some((l) => l.includes("Claude"))).toBe(true);
       expect(labels.some((l) => l.includes("OpenAI"))).toBe(true);
+      expect(labels.some((l) => l.includes("OpenCode"))).toBe(true);
       // The negative half is the one that fails on the unwired version: the
       // registry label is the adapter type, and it must not reach the tile.
       expect(labels.join(" ")).not.toContain("claude_local");
       expect(labels.join(" ")).not.toContain("codex_local");
+      expect(labels.join(" ")).not.toContain("opencode_local");
+
+      await act(async () => root.unmount());
+    });
+
+    it("shows OpenCode with an Ollama Cloud API-key flow", async () => {
+      mockAdapterRegistry.list = [
+        { type: "claude_local" },
+        { type: "codex_local" },
+        { type: "opencode_local" },
+      ];
+      mockAgentsApi.adapterModels.mockResolvedValue([
+        { id: "ollama/gpt-oss:120b", label: "GPT-OSS 120B · Ollama Cloud" },
+      ]);
+      const { root } = await openStep4({
+        adapterType: "opencode_local",
+        model: "ollama/gpt-oss:120b",
+        credentialModeChoice: "subscription",
+      });
+      const openCode = [...document.body.querySelectorAll("button[aria-checked]")]
+        .find((tile) => tile.textContent?.includes("OpenCode"));
+      expect(openCode).toBeTruthy();
+      await act(async () => {
+        openCode!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      for (let i = 0; i < 6; i++) await flushReact();
+
+      expect(document.body.textContent).toContain("OpenCode");
+      expect(document.body.textContent).toContain(
+        "OpenCode uses a provider API key.",
+      );
+      expect(document.body.textContent).toContain(
+        "Provide your Ollama Cloud API key to connect",
+      );
+      expect(mockAgentsApi.adapterModels).toHaveBeenCalledWith(
+        "company-new",
+        "opencode_local",
+        { environmentId: null, provider: "ollama" },
+      );
 
       await act(async () => root.unmount());
     });
@@ -2132,13 +2179,13 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       //
       // The tile row is `recommendedAdapters`; the snap's idea of "visible" is
       // recommended *plus* the advanced list. An adapter in the second but not
-      // the first — a saved `opencode_local`, say — therefore satisfies the
+      // the first — a saved `pi_local`, say — therefore satisfies the
       // snap, which leaves it alone, while the row it is supposed to be chosen
       // in never shows it. Nothing is highlighted, the canvas is shut, and with
       // the gate on `sourcePicked` the CTA was live: one press hires against an
       // adapter the customer has not seen on this screen.
-      mockAdapterRegistry.list = [{ type: "claude_local" }, { type: "opencode_local" }];
-      const { root } = await openStep4({ adapterType: "opencode_local" });
+      mockAdapterRegistry.list = [{ type: "claude_local" }, { type: "pi_local" }];
+      const { root } = await openStep4({ adapterType: "pi_local" });
 
       const tiles = [...document.body.querySelectorAll("button[aria-checked]")];
       expect(
@@ -2309,7 +2356,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
 
       expect(rowCentred()).toBe(false);
       expect(cta()).toBe("Next");
-      expect(document.body.textContent).toContain("Connect a model");
+      expect(document.body.textContent).toContain("Connect an LLM provider");
 
       await act(async () => root.unmount());
     });
@@ -2717,7 +2764,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       for (let i = 0; i < 6; i++) await flushReact();
 
       expect(mockAgentsApi.hire).not.toHaveBeenCalled();
-      expect(document.body.textContent).toContain("Connect a model");
+      expect(document.body.textContent).toContain("Connect an LLM provider");
 
       await act(async () => root.unmount());
     });
@@ -2828,7 +2875,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
         for (let i = 0; i < 6; i++) await flushReact();
 
         expect(mockAgentsApi.startClaudeSetupTokenLogin).not.toHaveBeenCalled();
-        expect(document.body.textContent).toContain("Connect a model");
+        expect(document.body.textContent).toContain("Connect an LLM provider");
 
         await act(async () => root.unmount());
       } finally {

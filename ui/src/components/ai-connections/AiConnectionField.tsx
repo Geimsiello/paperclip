@@ -11,6 +11,7 @@ import { aiConnectionsApi } from "@/api/ai-connections";
 import { AiConnectionPicker } from "./AiConnectionPicker";
 import { AiConnectionLegacyNotice } from "./AiConnectionManagement";
 import { AiConnectionCredentialStep } from "./AiConnectionCredentialStep";
+import { AI_PROVIDERS as AI_PROVIDER_DISPLAY } from "./model";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,12 +24,18 @@ import {
 
 export function aiProviderForAdapter(
   adapterType: string,
+  model?: string,
 ): AiProvider | undefined {
+  if (adapterType === "opencode_local") {
+    const modelProvider = model?.split("/", 1)[0];
+    return modelProvider === "openrouter" || modelProvider === "ollama"
+      ? modelProvider
+      : undefined;
+  }
   return (
     {
       claude_local: "anthropic",
       codex_local: "openai",
-      opencode_local: "openrouter",
       grok_local: "xai",
     } as Record<string, AiProvider>
   )[adapterType];
@@ -56,7 +63,7 @@ export function AiConnectionField({
   legacy?: boolean;
   readOnly?: boolean;
 }) {
-  const provider = aiProviderForAdapter(adapterType);
+  const provider = aiProviderForAdapter(adapterType, model);
   const returnFocus = useRef<HTMLElement | null>(null);
   const restoreFocus = (event: Event) => { event.preventDefault(); returnFocus.current?.focus(); };
   const [adopting, setAdopting] = useState(false);
@@ -74,7 +81,7 @@ export function AiConnectionField({
   });
   const method: AiAuthMethod = (value?.mode !== "responsible_user" ? value?.method : undefined)
     ?? accounts.data?.connections.find((account) => account.provider === provider && account.isDefault)?.method
-    ?? (provider === "openrouter" ? "api_key" : "subscription");
+    ?? (provider === "openrouter" || provider === "ollama" ? "api_key" : "subscription");
   if (!provider) return null;
   if (legacy && !value && !adopting)
     return (
@@ -160,7 +167,7 @@ export function AiConnectionField({
             companyId={companyId}
             provider={provider}
             initialMethod={method}
-            name={`My ${provider === "anthropic" ? "Claude" : provider === "openai" ? "OpenAI" : provider === "xai" ? "Grok" : "OpenRouter"} ${method === "subscription" ? "subscription" : "API"}`}
+            name={`My ${AI_PROVIDER_DISPLAY[provider].name} ${method === "subscription" ? "subscription" : "API"}`}
             ownership="personal"
             agentIds={agentId ? [agentId] : []}
             allAgents={false}
